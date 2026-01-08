@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Red Bull Çark</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: radial-gradient(circle at top, #1e3c72 0%, #0f2027 40%, #000 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: absolute;
+      inset: -50%;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(30,136,229,0.25), transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(229,57,53,0.25), transparent 45%),
+        linear-gradient(120deg, rgba(255,255,255,0.04), rgba(0,0,0,0));
+      animation: backgroundEnergy 22s linear infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(4px);
+      border-radius: 16px;
+      padding: 20px 28px 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      max-width: 90vw;
+    }
+
+    canvas {
+      border-radius: 50%;
+      background: radial-gradient(circle at top,
+        rgba(229,57,53,0.25),
+        rgba(30,136,229,0.25),
+        rgba(0,0,0,0.15));
+      background-size: 200% 200%;
+      animation: wheelEnergy 12s ease-in-out infinite;
+    }
+
+    canvas.spinning {
+      filter: drop-shadow(0 0 25px rgba(30,136,229,0.9)) brightness(1.15);
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: #ff9800;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    button.disabled {
+      background: #555;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    #result {
+      margin-top: 20px;
+      font-size: 36px;
+      font-weight: bold;
+      color: #fff;
+      white-space: pre-line;
+      text-align: center;
+    }
+
+    #result .note {
+      display: block;
+      margin-top: 8px;
+      font-size: 14px;
+      font-weight: normal;
+      opacity: 0.85;
+    }
+
+    #result.animate {
+      animation: pulseShake 0.8s ease;
+    }
+
+    #result.jackpot {
+      color: #fdd835;
+      text-shadow: 0 0 15px rgba(253,216,53,0.9), 0 0 30px rgba(253,216,53,0.6);
+      animation: jackpotGlow 1.2s ease-in-out infinite alternate;
+    }
+
+    @keyframes jackpotGlow {
+      from { transform: scale(1); filter: brightness(1); }
+      to { transform: scale(1.15); filter: brightness(1.4); }
+    }
+
+    @keyframes pulseShake {
+      0% { transform: scale(1) translateX(0); }
+      25% { transform: scale(1.15) translateX(-6px); }
+      50% { transform: scale(1.2) translateX(6px); }
+      75% { transform: scale(1.1) translateX(-4px); }
+      100% { transform: scale(1) translateX(0); }
+    }
+
+    @keyframes wheelEnergy {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    @keyframes backgroundEnergy {
+      0% { transform: translate(0,0) rotate(0deg); }
+      50% { transform: translate(6%,-6%) rotate(180deg); }
+      100% { transform: translate(0,0) rotate(360deg); }
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      canvas { width: 300px; height: 300px; }
+      #result { font-size: 28px; }
+    }
+
+    @media (max-width: 480px) {
+      canvas { width: 260px; height: 260px; }
+      h2 { font-size: 20px; }
+      button { font-size: 16px; padding: 10px 20px; }
+      #result { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>⚡ RED BULL ÇARK ⚡</h2>
+    <canvas id="wheel" width="360" height="360"></canvas>
+    <button id="spinBtn">ÇEVİR</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+"use strict";
+
+window.addEventListener("DOMContentLoaded", () => {
+  const DAILY_KEY = "rb_spin_date";
+  const CODE_KEY = "rb_reward_code";
+
+  const options = ["%20", "%10", "%30", "1+1 RED BULL", "%20", "%5"];
+  const canvas = document.getElementById("wheel");
+  const ctx = canvas.getContext("2d");
+  const center = canvas.width / 2;
+  const radius = center;
+  let angle = 0;
+
+  function todayKey() {
+    const now = new Date();
+    const tr = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Istanbul" }));
+    tr.setHours(0,0,0,0);
+    return tr.getTime();
+  }
+
+  function checkDailySpin() {
+    const lastSpin = Number(localStorage.getItem(DAILY_KEY));
+    const btn = document.getElementById("spinBtn");
+    if (lastSpin === todayKey()) {
+      btn.disabled = true;
+      btn.classList.add("disabled");
+      btn.innerText = "BUGÜN KULLANILDI";
+    } else {
+      btn.disabled = false;
+      btn.classList.remove("disabled");
+      btn.innerText = "ÇEVİR";
+    }
+  }
+
+  function drawWheel() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const slice = (2 * Math.PI) / options.length;
+
+    options.forEach((value, i) => {
+      ctx.beginPath();
+      ctx.moveTo(center, center);
+      ctx.arc(center, center, radius, slice * i + angle, slice * (i + 1) + angle);
+
+      if (value === "%5") ctx.fillStyle = "#e53935";
+      else if (value === "%10") ctx.fillStyle = "#1e88e5";
+      else if (value === "%20" && i === 0) ctx.fillStyle = "#9e9e9e";
+      else if (value === "%20") ctx.fillStyle = "#43a047";
+      else if (value === "%30") ctx.fillStyle = "#8e24aa";
+      else ctx.fillStyle = "#fdd835";
+
+      ctx.fill();
+      ctx.save();
+      ctx.translate(center, center);
+      ctx.rotate(slice * i + slice / 2 + angle);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#333";
+      ctx.font = "bold 18px Arial";
+      ctx.fillText(value, radius * 0.6, 0);
+      ctx.restore();
+    });
+  }
+
+  function spin() {
+    const today = todayKey();
+    const lastSpin = Number(localStorage.getItem(DAILY_KEY));
+    if (lastSpin === today) return; // günde 1 kez
+
+    const resultEl = document.getElementById("result");
+    resultEl.className = "";
+    resultEl.innerHTML = "";
+    canvas.classList.add("spinning");
+
+    const weighted = [
+      { label: "%5", w: 5 },
+      { label: "%10", w: 25 },
+      { label: "%20", w: 20 },
+      { label: "%20", w: 20 },
+      { label: "%30", w: 15 },
+      { label: "1+1 RED BULL", w: 15 }
+    ];
+
+    let r = Math.random() * 100;
+    let selected = weighted[0].label;
+    for (const o of weighted) {
+      if (r < o.w) { selected = o.label; break; }
+      r -= o.w;
+    }
+
+    const targetIndex = options.findIndex((o, i) => o === selected && (selected !== "%20" || i !== 0));
+    const slice = (2 * Math.PI) / options.length;
+    const spinAngle = 5 * 2 * Math.PI + (options.length - targetIndex) * slice;
+
+    let start = null;
+    const duration = 3000;
+
+    function animate(ts) {
+      if (!start) start = ts;
+      const t = Math.min((ts - start) / duration, 1);
+      angle = spinAngle * (1 - Math.pow(1 - t, 3));
+      drawWheel();
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        canvas.classList.remove("spinning");
+
+        // GÜNÜ TAMAMLANDI – BURADA KİLİTLE
+        localStorage.setItem(DAILY_KEY, today);
+        checkDailySpin();
+
+        let code = sessionStorage.getItem(CODE_KEY);
+        if (!code) {
+          code = Math.floor(100000 + Math.random() * 900000);
+          sessionStorage.setItem(CODE_KEY, code);
+        }
+
+        resultEl.innerHTML = `KAZANDINIZ: ${selected}<br>KOD: ${code}<span class="note">Bu kodu satıcıya gösteriniz</span>`;
+        resultEl.classList.add("animate");
+        if (selected === "1+1 RED BULL") resultEl.classList.add("jackpot");
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  document.getElementById("spinBtn").addEventListener("click", spin);
+  checkDailySpin();
+  drawWheel();
+});
+</script>
+</body>
+</html>
